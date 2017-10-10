@@ -1,0 +1,85 @@
+SET ECHO OFF
+SET TERMOUT OFF
+SET FEEDBACK OFF
+SET PAGESIZE 0
+SET LINESIZE 2000
+SET TRIMSPOOL ON
+COL filename new_value filename
+SELECT 'U:\Data\C4_NEW_CASES_'||TO_CHAR(SYSDATE,'MMDDYYYY')||'.TXT' filename FROM DUAL;
+SPOOL &&filename
+PROMPT APP_ID^FORM_NBR^OFFICE_LOC_CODE^OFFICE_LOC_SUB_CODE^CASE_LOC_CODE^CASE_LOC_SUB_CODE^ALIEN_NBR^LAST_NAME^FIRST_NAME^MIDDLE_NAME^DOB_DT^MR_RECV_DTIME^COB_CODE^CITIZENSHIP_CNTRY_CODE^PERMRES_DT^DISABILITY_FLAG^FORM_N648_ATTACHED_FLAG^ELIGIBILITY_CODE^SECT_OF_LAW_CODE^LOCKBOX^LOCKBOX_DATA_ENTRY_DATE^PAYMENT_ID^TOTAL_PAYMENT_AMT^PAYMENT_DESC^PAYMENT_STATUS_IND^FEE_CHARGED^FEE_WAIVED_FLAG^FEE_RECV_ELSEWHERE_FLAG^SSN^GENDER_CODE^HEIGHT_FEET^HEIGHT_INCHES^M_ADDR_START_DT^M_ADDR_INCAREOF^M_ADDR_BLDG_RM^M_ADDR_STREET_NBR^M_ADDR_STREET_NAME^M_ADDR_CITY^M_ADDR_STATE_CODE^M_ADDR_ZIP_CODE^M_ADDR_PROVINCE^M_ADDR_POSTAL_CODE^M_ADDR_CNTRY_CODE^M_ADDR_UPDATED_DATETIME
+SELECT 
+apl.APP_ID||'^'||
+apl.FORM_NBR||'^'||
+proc.OFFICE_LOC_CODE||'^'||
+proc.OFFICE_LOC_SUB_CODE||'^'||
+proc.CASE_LOC_CODE||'^'||
+proc.CASE_LOC_SUB_CODE||'^'||
+applic.ALIEN_NBR||'^'||
+applic.LAST_NAME||'^'||
+applic.FIRST_NAME||'^'||
+applic.MIDDLE_NAME||'^'||
+TO_CHAR(applic.DOB_DT,'MM/DD/YYYY')||'^'||
+TO_CHAR(apl.MR_RECV_DTIME,'MM/DD/YYYY')||'^'||
+applic.COB_CODE||'^'||
+applic.CITIZENSHIP_CNTRY_CODE||'^'||
+TO_CHAR(applic.PERMRES_DT,'MM/DD/YYYY')||'^'||
+decode(apl.DISABILITY_FLAG,'N','','Y','D') || 
+   decode(apl.HEARING_IMPAIRED_FLAG,'N','','Y','H') || 
+   decode(apl.WHEEL_CHAIR_FLAG,'N','','Y','W') ||
+   decode(apl.VISION_IMPAIRED_FLAG,'N','','Y','V') || 
+   decode(apl.OTHER_DISABILITY_FLAG, 'N','','Y','O')||'^'||
+apl.FORM_N648_ATTACHED_FLAG||'^'||
+apl.PART21_CODE||'^'||
+apl.APP_SECT_OF_LAW_CODE||'^'||
+decode(proc.EXT_SYS_SITE_LOC_CODE||proc.EXT_SYS_SITE_LOC_SUB_CODE,'LBX002','DAL','LBX003','PHO')||'^'||
+TO_CHAR(proc.START_DTIME,'MM/DD/YYYY')||'^'||
+pay.payment_id||'^'||
+pay.total_payment_amt||'^'||
+pay.payment_desc||'^'||
+decode(DISC.DISCREPANCY_AMT,0,'Upd. Underpay',NULL,'PayOK','Underpay')||'^'||
+apl.fee_charged||'^'||
+apl.fee_waived_flag||'^'||
+apl.fee_recv_elsewhere_flag||'^'||
+applic.ssn||'^'||
+applic.gender_code||'^'||
+applic.height_feet||'^'||
+applic.height_inches||'^'||
+TO_CHAR(addr.START_DT,'MM/DD/YYYY')||'^'||
+addr.INCAREOF||'^'||
+addr.BLDG_RM||'^'||
+addr.STREET_NBR||'^'||
+addr.STREET_NAME||'^'||
+addr.CITY||'^'||
+addr.STATE_CODE||'^'||
+addr.ZIP_CODE||'^'||
+addr.PROVINCE||'^'||
+addr.POSTAL_CODE||'^'||
+addr.CNTRY_CODE||'^'||
+TO_CHAR(addr.UPDATED_DATETIME,'MM/DD/YYYY')
+FROM 
+IBS_AP_APPLICATION apl,
+IBS_AP_APPLICANT applic,
+IBS_WF_PROCESS_INST proc,
+IBS_AP_ADDRESS addr,
+IBS_AP_DISCREP_PAYMENT disc,
+IBS_AP_PAYMENT pay
+WHERE 
+apl.APP_ID = applic.APP_ID
+AND apl.APP_ID = proc.PROCESS_INST_ID
+AND apl.APP_ID = addr.APP_ID
+AND PROC.REL_PROCESS_INST_ID=DISC.PAYMENT_ID (+)
+AND proc.REL_PROCESS_INST_ID = pay.PAYMENT_ID (+)
+AND apl.FORM_NBR in ('N336','N400','N600','N600K')
+-- DWP 2017/06/29 USCISC4-342: Excluding military, military spouse, and BCT cases
+AND NVL(apl.MILITARY, 'N') <> 'Y'
+AND NVL(apl.MILITARY_SPOUSE, 'N') <> 'Y'
+AND NVL(apl.BCT_INDICATOR, 'N') <> 'Y'
+AND proc.rec_sc_loc_code ='NBC'
+AND proc.START_DTIME > SYSDATE -60
+AND addr.ADDR_TYPE_IND = 'M'
+AND proc.process_state <> 'Terminated';
+SPOOL OFF;
+SET ECHO ON
+SET TERMOUT ON
+SET FEEDBACK ON
